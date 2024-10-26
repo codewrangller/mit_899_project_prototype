@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Detection Prototype</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        #results, #runCount {
+            margin-top: 20px;
+        }
+        #learningRateChart {
+            margin-top: 20px;
+            height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Phishing Detection Prototype - {{ model_type.capitalize() }} Model</h1>
+    <form id="testForm">
+        <label for="numRecords">Number of packets to test:</label>
+        <input type="number" id="numRecords" name="num_records" value="500" min="1" max="5000">
+        <input type="hidden" name="model_type" value="{{ model_type }}">
+        <button type="submit">Run Test</button>
+    </form>
+    <div id="runCount"></div>
+    <div id="results"></div>
+    <canvas id="learningRateChart"></canvas>
+
+    <script>
+        let learningRateChart;
+        let runCount = 0;
+        let accuracyHistory = [];
+        const testForm = document.getElementById('testForm');
+        const resultsDiv = document.getElementById('results');
+        const runCountDiv = document.getElementById('runCount');
+        
+        testForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(testForm);
+            
+            try {
+                const response = await fetch('/test', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                runCount++;
+                displayResults(data);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        function displayResults(data) {
+            runCountDiv.textContent = `Run Count: ${runCount}`;
+            
+            resultsDiv.innerHTML = `
+                <h2>Test Results</h2>
+                <p>Accuracy: ${(data.accuracy * 100).toFixed(2)}%</p>
+                <p>Number of packets tested: ${data.num_records}</p>
+                <h3>Non-Phishing Packets:</h3>
+                <p>Correctly Identified: ${data.legitimate_true}</p>
+                <p>Incorrectly Identified: ${data.legitimate_false}</p>
+                <h3>Phishing Packets:</h3>
+                <p>Correctly Identified: ${data.phishing_true}</p>
+                <p>Incorrectly Identified: ${data.phishing_false}</p>
+            `;
+
+            updateLearningRateChart(data);
+        }
+
+        function updateLearningRateChart(data) {
+            accuracyHistory.push(data.accuracy);
+
+            if (learningRateChart) {
+                learningRateChart.destroy();
+            }
+
+            const ctx = document.getElementById('learningRateChart').getContext('2d');
+            learningRateChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: accuracyHistory.length}, (_, i) => i + 1),
+                    datasets: [{
+                        label: 'Accuracy',
+                        data: accuracyHistory,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Accuracy'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Run Count'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Model Accuracy Across Multiple Run Tests'
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
